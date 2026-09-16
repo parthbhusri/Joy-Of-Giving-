@@ -2,30 +2,6 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
 
-const DUMMY_RESULT = {
-  id: 'demo-001',
-  cleanliness: {
-    rating: 4,
-    description:
-      'This toy appears to be in great condition with only minor surface marks visible. A quick wipe with a damp cloth will have it looking brand new and ready for a new owner to enjoy!'
-  },
-  reusability: {
-    rating: 5,
-    description:
-      'Excellent reusability! This toy is built from durable, high-quality materials and shows no signs of structural damage. It has plenty of play life left and will bring joy to many more children.'
-  },
-  reliability: {
-    rating: 3,
-    description:
-      'The toy is generally reliable but shows some light wear on the moving parts. With a little care and gentle play, it should continue to function well for some time to come.'
-  },
-  battery_operated: true,
-  battery_note:
-    'This toy requires batteries to operate. Before gifting, check that the battery compartment is clean and free from corrosion. Standard AA batteries are recommended.',
-  fun_fact:
-    'Did you know? Donating a toy saves it from landfill and gives it a second life with a child who will love it just as much as the first owner did!'
-}
-
 export default function Home() {
   const [imageURL, setImageURL] = useState(null)
   const [image, setImage] = useState(null)
@@ -74,7 +50,9 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Camera error:', error)
-      alert('Camera could not be opened. Please allow camera permission or use Gallery instead.')
+      alert(
+        'Camera could not be opened. Please allow camera permission or use Gallery instead.'
+      )
       setCameraOpen(false)
     }
   }
@@ -119,19 +97,37 @@ export default function Home() {
       return
     }
 
-    setAnalyzing(true)
+    try {
+      setAnalyzing(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 3000))
+      const formData = new FormData()
+      formData.append('toyImage', image)
 
-    sessionStorage.setItem(
-      'toyResult',
-      JSON.stringify({
-        ...DUMMY_RESULT,
-        imageURL
+      const response = await fetch('http://localhost:5000/api/analyze-toy', {
+        method: 'POST',
+        body: formData
       })
-    )
 
-    navigate('/result/demo-001')
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to analyse toy image.')
+      }
+
+      sessionStorage.setItem(
+        'toyResult',
+        JSON.stringify({
+          ...data.result,
+          imageURL
+        })
+      )
+
+      navigate(`/result/${data.result.id}`)
+    } catch (error) {
+      console.error('Toy analysis error:', error)
+      alert(error.message || 'Something went wrong while analysing the toy.')
+      setAnalyzing(false)
+    }
   }
 
   if (analyzing) {
