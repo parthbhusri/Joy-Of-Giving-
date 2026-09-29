@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
+import heroVideo from '../assets/hero-video.mp4'
+import heroPoster from '../assets/hero-poster.jpg'
 
 export default function Home() {
   const [imageURL, setImageURL] = useState(null)
@@ -178,23 +180,37 @@ export default function Home() {
     <>
       <Navbar />
 
-      <div className="hero">
-        <span className="hero-toys">🧸 🚂 🎮 🪀</span>
+      <div className="hero" style={{ backgroundImage: `url(${heroPoster})` }}>
+        <video
+          className="hero-video"
+          autoPlay
+          loop
+          muted
+          playsInline
+          poster={heroPoster}
+        >
+          <source src={heroVideo} type="video/mp4" />
+        </video>
+        <div className="hero-video-overlay" />
 
-        <h1>
-          Giving Preloved Toys
-          <br />
-          <span>a New Life</span>
-        </h1>
+        <div className="hero-content">
+          <span className="hero-toys">🧸 🚂 🎮 🪀</span>
 
-        <p className="hero-desc">
-          Scan any donated toy with your phone camera. Our AI rates its
-          cleanliness, reusability and reliability — instantly.
-        </p>
+          <h1>
+            Giving Preloved Toys
+            <br />
+            <span>a New Life</span>
+          </h1>
 
-        <button className="hero-cta" onClick={openCamera}>
-          📷 Scan a Toy Now
-        </button>
+          <p className="hero-desc">
+            Scan any donated toy with your phone camera. Our AI rates its
+            cleanliness, reusability and reliability — instantly.
+          </p>
+
+          <button className="hero-cta" onClick={openCamera}>
+            📷 Scan a Toy Now
+          </button>
+        </div>
       </div>
 
       <div className="mission-strip">
