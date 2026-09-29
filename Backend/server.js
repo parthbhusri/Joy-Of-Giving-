@@ -31,6 +31,11 @@ app.use(cors({
 
 app.use(express.json())
 
+app.use((req, res, next) => {
+  console.log(`[diagnostic] incoming request: ${req.method} ${req.url} (origin: ${req.headers.origin || 'none'})`)
+  next()
+})
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
