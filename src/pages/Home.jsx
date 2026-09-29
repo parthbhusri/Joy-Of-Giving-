@@ -160,7 +160,7 @@ export default function Home() {
             <p
               style={{
                 marginTop: 24,
-                color: '#F16B7B',
+                color: '#B8505C',
                 fontFamily: 'Nunito',
                 fontWeight: 800,
                 fontSize: '0.9rem'

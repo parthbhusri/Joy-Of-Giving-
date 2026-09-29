@@ -41,9 +41,9 @@ export default function Result() {
       <Navbar />
       <div className="page" style={{ textAlign: 'center', paddingTop: 60 }}>
         <p style={{ fontSize: '3rem', marginBottom: 16 }}>🤔</p>
-        <h2 style={{ fontFamily: 'Nunito', color: '#1a2744', marginBottom: 10 }}>No Result Found</h2>
+        <h2 style={{ fontFamily: 'Nunito', color: '#1A1A1A', marginBottom: 10 }}>No Result Found</h2>
         <p style={{ color: '#6B7280', marginBottom: 24 }}>Please scan a toy first.</p>
-        <Link to="/" style={{ display: 'inline-block', padding: '12px 28px', background: '#F16B7B', color: 'white', borderRadius: 12, fontFamily: 'Nunito', fontWeight: 800, textDecoration: 'none' }}>
+        <Link to="/" style={{ display: 'inline-block', padding: '12px 28px', background: '#B8505C', color: 'white', borderRadius: 12, fontFamily: 'Nunito', fontWeight: 800, textDecoration: 'none' }}>
           ← Scan a Toy
         </Link>
       </div>
