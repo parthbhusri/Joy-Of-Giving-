@@ -47,6 +47,30 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
 })
 
+async function generateContentWithRetry(params, maxRetries = 2) {
+  let lastError
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await ai.models.generateContent(params)
+    } catch (error) {
+      lastError = error
+
+      const isRetryable = error.status === 503 || error.status === 429
+
+      if (!isRetryable || attempt === maxRetries) {
+        throw error
+      }
+
+      const delayMs = 1000 * Math.pow(2, attempt)
+      console.log(`[diagnostic] Gemini call failed (status ${error.status}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`)
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+
+  throw lastError
+}
+
 function cleanJsonResponse(text) {
   return text
     .replace(/```json/g, '')
@@ -133,7 +157,7 @@ Return JSON using exactly this structure:
 Ratings must be numbers from 1 to 5.
 `
 
-    const response = await ai.models.generateContent({
+    const response = await generateContentWithRetry({
       model: 'gemini-3.8-flash',
       contents: [
         {
@@ -178,9 +202,13 @@ Ratings must be numbers from 1 to 5.
   } catch (error) {
     console.error('Gemini API error:', error)
 
+    const isBusy = error.status === 503 || error.status === 429
+
     return res.status(500).json({
       success: false,
-      message: 'Failed to analyse toy image.',
+      message: isBusy
+        ? "Google's AI service is busy right now. Please try again in a moment."
+        : 'Failed to analyse toy image.',
       error: error.message
     })
   }
