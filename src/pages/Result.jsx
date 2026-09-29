@@ -5,20 +5,21 @@ import RatingCard from '../components/RatingCard.jsx'
 
 export default function Result() {
   const [result, setResult] = useState(null)
-  const [copied, setCopied] = useState(false)
-  const [toast, setToast] = useState(false)
+  // TODO: Save/Share report feature — disabled until backend persistence (MongoDB) is built.
+  // const [copied, setCopied] = useState(false)
+  // const [toast, setToast] = useState(false)
 
   useEffect(() => {
     const data = sessionStorage.getItem('toyResult')
     if (data) setResult(JSON.parse(data))
   }, [])
 
-  function copyLink() {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      setCopied(true); setToast(true)
-      setTimeout(() => { setCopied(false); setToast(false) }, 2500)
-    })
-  }
+  // function copyLink() {
+  //   navigator.clipboard.writeText(window.location.href).then(() => {
+  //     setCopied(true); setToast(true)
+  //     setTimeout(() => { setCopied(false); setToast(false) }, 2500)
+  //   })
+  // }
 
   function getOverall(r) {
     return ((r.cleanliness.rating + r.reusability.rating + r.reliability.rating) / 3).toFixed(1)
@@ -105,6 +106,7 @@ export default function Result() {
 
         <div className="share-card">
           <h3>🔗 Save or Share This Report</h3>
+          {/* TODO: Save/Share report feature — disabled until backend persistence (MongoDB) is built.
           <div className="share-url">{window.location.href}</div>
           <div className="share-buttons">
             <button className={`btn-copy ${copied ? 'copied' : ''}`} onClick={copyLink}>
@@ -112,10 +114,13 @@ export default function Result() {
             </button>
             <Link to="/" className="btn-scan-again">🔄 Scan Again</Link>
           </div>
+          */}
+          <div className="coming-soon-bubble">✨ Save Report — available soon!</div>
+          <Link to="/" className="btn-scan-again">🔄 Scan Again</Link>
         </div>
 
       </div>
-      <div className={`toast ${toast ? 'show' : ''}`}>✅ Link copied!</div>
+      {/* <div className={`toast ${toast ? 'show' : ''}`}>✅ Link copied!</div> */}
     </>
   )
 }

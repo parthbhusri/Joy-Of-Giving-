@@ -648,6 +648,18 @@ h1, h2, h3, h4, .brand {
 .btn-copy:hover { background: #a1444f; }
 .btn-copy.copied { background: var(--mint-strong); }
 
+.coming-soon-bubble {
+  background: var(--cream);
+  border: 1.5px dashed var(--border);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 12px;
+}
+
 .btn-scan-again {
   padding: 12px 16px;
   background: var(--ink);
