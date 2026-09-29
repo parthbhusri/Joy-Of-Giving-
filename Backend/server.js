@@ -6,6 +6,22 @@ import { GoogleGenAI } from '@google/genai'
 
 dotenv.config()
 
+process.on('exit', (code) => {
+  console.log(`[diagnostic] process exiting with code ${code}`)
+})
+process.on('uncaughtException', (err) => {
+  console.error('[diagnostic] uncaughtException:', err)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[diagnostic] unhandledRejection:', reason)
+})
+
+if (!process.env.GEMINI_API_KEY) {
+  console.error('[diagnostic] GEMINI_API_KEY is missing or empty — check Backend/.env')
+} else {
+  console.log(`[diagnostic] GEMINI_API_KEY loaded, length ${process.env.GEMINI_API_KEY.length}`)
+}
+
 const app = express()
 const PORT = process.env.PORT || 5000
 
@@ -165,6 +181,14 @@ Ratings must be numbers from 1 to 5.
   }
 })
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`)
 })
+
+server.on('error', (err) => {
+  console.error('[diagnostic] server error:', err)
+})
+
+setInterval(() => {
+  console.log('[diagnostic] heartbeat - process still alive')
+}, 5000)
