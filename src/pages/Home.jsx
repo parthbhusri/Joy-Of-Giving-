@@ -105,7 +105,7 @@ export default function Home() {
       const formData = new FormData()
       formData.append('toyImage', image)
 
-      const response = await fetch('http://localhost:5000/api/analyze-toy', {
+      const response = await fetch('https://joy-of-giving-backend-144607008974.australia-southeast1.run.app/api/analyze-toy', {
         method: 'POST',
         body: formData
       })
