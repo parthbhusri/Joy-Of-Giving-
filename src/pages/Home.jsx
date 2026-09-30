@@ -52,9 +52,11 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Camera error:', error)
+
       alert(
         'Camera could not be opened. Please allow camera permission or use Gallery instead.'
       )
+
       setCameraOpen(false)
     }
   }
@@ -78,17 +80,29 @@ export default function Home() {
     canvas.height = video.videoHeight
 
     const context = canvas.getContext('2d')
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    context.drawImage(
+      video,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    )
 
     canvas.toBlob((blob) => {
       if (!blob) return
 
-      const capturedFile = new File([blob], 'captured-toy.jpg', {
-        type: 'image/jpeg'
-      })
+      const capturedFile = new File(
+        [blob],
+        'captured-toy.jpg',
+        {
+          type: 'image/jpeg'
+        }
+      )
 
       setImage(capturedFile)
       setImageURL(URL.createObjectURL(blob))
+
       closeCamera()
     }, 'image/jpeg')
   }
@@ -102,18 +116,31 @@ export default function Home() {
     try {
       setAnalyzing(true)
 
-      const formData = new FormData()
-      formData.append('toyImage', image)
+      // Clear previous scan result before starting a new analysis
+      sessionStorage.removeItem('toyResult')
 
-      const response = await fetch('https://joy-of-giving-backend-144607008974.australia-southeast1.run.app/api/analyze-toy', {
-        method: 'POST',
-        body: formData
-      })
+      const formData = new FormData()
+
+      formData.append(
+        'toyImage',
+        image
+      )
+
+      const response = await fetch(
+        'https://joy-of-giving-backend-144607008974.australia-southeast1.run.app/api/analyze-toy',
+        {
+          method: 'POST',
+          body: formData
+        }
+      )
 
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to analyse toy image.')
+        throw new Error(
+          data.message ||
+          'Failed to analyse toy image.'
+        )
       }
 
       sessionStorage.setItem(
@@ -124,10 +151,20 @@ export default function Home() {
         })
       )
 
-      navigate(`/result/${data.result.id}`)
+      navigate(
+        `/result/${data.result.id}`
+      )
     } catch (error) {
-      console.error('Toy analysis error:', error)
-      alert(error.message || 'Something went wrong while analysing the toy.')
+      console.error(
+        'Toy analysis error:',
+        error
+      )
+
+      alert(
+        error.message ||
+        'Something went wrong while analysing the toy.'
+      )
+
       setAnalyzing(false)
     }
   }
@@ -139,11 +176,13 @@ export default function Home() {
 
         <div className="page">
           <div className="analyzing">
+
             <div
               style={{
                 fontSize: 64,
                 marginBottom: 20,
-                animation: 'float 1.5s ease-in-out infinite'
+                animation:
+                  'float 1.5s ease-in-out infinite'
               }}
             >
               🔍
@@ -151,7 +190,9 @@ export default function Home() {
 
             <div className="analyzing-spinner" />
 
-            <h2>Scanning Your Toy</h2>
+            <h2>
+              Scanning Your Toy
+            </h2>
 
             <p>
               Our AI is carefully analysing the image
@@ -170,6 +211,7 @@ export default function Home() {
             >
               Checking cleanliness · reusability · reliability...
             </p>
+
           </div>
         </div>
       </>
@@ -180,7 +222,12 @@ export default function Home() {
     <>
       <Navbar />
 
-      <div className="hero" style={{ backgroundImage: `url(${heroPoster})` }}>
+      <div
+        className="hero"
+        style={{
+          backgroundImage: `url(${heroPoster})`
+        }}
+      >
         <video
           className="hero-video"
           autoPlay
@@ -189,63 +236,118 @@ export default function Home() {
           playsInline
           poster={heroPoster}
         >
-          <source src={heroVideo} type="video/mp4" />
+          <source
+            src={heroVideo}
+            type="video/mp4"
+          />
         </video>
+
         <div className="hero-video-overlay" />
 
         <div className="hero-content">
-          <span className="hero-toys">🧸 🚂 🎮 🪀</span>
+
+          <span className="hero-toys">
+            🧸 🚂 🎮 🪀
+          </span>
 
           <h1>
             Giving Preloved Toys
             <br />
-            <span>a New Life</span>
+            <span>
+              a New Life
+            </span>
           </h1>
 
           <p className="hero-desc">
-            Scan any donated toy with your phone camera. Our AI rates its
-            cleanliness, reusability and reliability — instantly.
+            Scan any donated toy with your phone camera.
+            Our AI rates its cleanliness, reusability and
+            reliability — instantly.
           </p>
 
-          <button className="hero-cta" onClick={openCamera}>
+          <button
+            className="hero-cta"
+            onClick={openCamera}
+          >
             📷 Scan a Toy Now
           </button>
+
         </div>
       </div>
 
       <div className="mission-strip">
+
         <div className="mission-item">
-          <span className="mission-icon">🚂</span>
-          <span className="mission-label">Our Mission</span>
+          <span className="mission-icon">
+            🚂
+          </span>
+
+          <span className="mission-label">
+            Our Mission
+          </span>
         </div>
 
         <div className="mission-item">
-          <span className="mission-icon">🎁</span>
-          <span className="mission-label">Donate a Toy</span>
+          <span className="mission-icon">
+            🎁
+          </span>
+
+          <span className="mission-label">
+            Donate a Toy
+          </span>
         </div>
 
         <div className="mission-item">
-          <span className="mission-icon">🤝</span>
-          <span className="mission-label">Volunteer</span>
+          <span className="mission-icon">
+            🤝
+          </span>
+
+          <span className="mission-label">
+            Volunteer
+          </span>
         </div>
+
       </div>
 
       <div className="page">
-        <div className="section-header" style={{ marginTop: 24 }}>
-          <div className="section-eyebrow">AI Toy Scanner</div>
-          <h2>Scan, Rate &amp; Share</h2>
+
+        <div
+          className="section-header"
+          style={{
+            marginTop: 24
+          }}
+        >
+          <div className="section-eyebrow">
+            AI Toy Scanner
+          </div>
+
+          <h2>
+            Scan, Rate &amp; Share
+          </h2>
         </div>
 
         <div
           className="camera-card"
           onDrop={(e) => {
             e.preventDefault()
-            handleFile(e.dataTransfer.files[0])
+
+            handleFile(
+              e.dataTransfer.files[0]
+            )
           }}
-          onDragOver={(e) => e.preventDefault()}
+          onDragOver={(e) =>
+            e.preventDefault()
+          }
         >
-          <div className={`camera-preview ${imageURL ? 'has-image' : ''}`}>
+
+          <div
+            className={`camera-preview ${
+              imageURL
+                ? 'has-image'
+                : ''
+            }`}
+          >
             {cameraOpen ? (
+
               <video
                 ref={videoRef}
                 autoPlay
@@ -258,43 +360,81 @@ export default function Home() {
                   borderRadius: '12px'
                 }}
               />
+
             ) : imageURL ? (
-              <img src={imageURL} alt="Toy preview" />
+
+              <img
+                src={imageURL}
+                alt="Toy preview"
+              />
+
             ) : (
+
               <>
                 <div className="camera-corners" />
-                <span className="camera-icon">📷</span>
+
+                <span className="camera-icon">
+                  📷
+                </span>
+
                 <span className="camera-hint">
                   Tap to scan or drop image here
                 </span>
               </>
+
             )}
           </div>
 
           {cameraOpen ? (
+
             <div className="camera-actions">
-              <button className="btn-primary" onClick={capturePhoto}>
+
+              <button
+                className="btn-primary"
+                onClick={capturePhoto}
+              >
                 📸 Capture Photo
               </button>
 
-              <button className="btn-secondary" onClick={closeCamera}>
+              <button
+                className="btn-secondary"
+                onClick={closeCamera}
+              >
                 ❌ Cancel
               </button>
+
             </div>
+
           ) : (
+
             <div className="camera-actions">
-              <button className="btn-primary" onClick={openCamera}>
+
+              <button
+                className="btn-primary"
+                onClick={openCamera}
+              >
                 📷 Use Camera
               </button>
 
-              <button className="btn-secondary" onClick={openGallery}>
+              <button
+                className="btn-secondary"
+                onClick={openGallery}
+              >
                 🖼️ Gallery
               </button>
+
             </div>
+
           )}
+
         </div>
 
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        <canvas
+          ref={canvasRef}
+          style={{
+            display: 'none'
+          }}
+        />
 
         <input
           ref={fileRef}
@@ -302,57 +442,102 @@ export default function Home() {
           accept="image/*"
           className="hidden"
           onChange={(e) => {
-            handleFile(e.target.files[0])
+            handleFile(
+              e.target.files[0]
+            )
+
             e.target.value = ''
           }}
         />
 
         {imageURL && !cameraOpen && (
-          <button className="btn-scan" onClick={handleScan}>
+
+          <button
+            className="btn-scan"
+            onClick={handleScan}
+          >
             ✨ Analyse This Toy
           </button>
+
         )}
 
         <div className="section-header">
-          <div className="section-eyebrow">Simple Steps</div>
-          <h2>How It Works</h2>
+
+          <div className="section-eyebrow">
+            Simple Steps
+          </div>
+
+          <h2>
+            How It Works
+          </h2>
+
         </div>
 
         <div className="steps">
+
           <div className="step-item">
-            <div className="step-num">1</div>
+
+            <div className="step-num">
+              1
+            </div>
 
             <div className="step-text">
-              <strong>Take a Photo</strong>
+
+              <strong>
+                Take a Photo
+              </strong>
+
               <span>
-                Use your phone camera or upload an image of the donated toy.
+                Use your phone camera or upload an image
+                of the donated toy.
               </span>
+
             </div>
+
           </div>
 
           <div className="step-item">
-            <div className="step-num">2</div>
+
+            <div className="step-num">
+              2
+            </div>
 
             <div className="step-text">
-              <strong>AI Scans the Toy</strong>
+
+              <strong>
+                AI Scans the Toy
+              </strong>
+
               <span>
-                Our AI checks cleanliness, reusability and reliability, rating
-                each out of 5 stars.
+                Our AI checks cleanliness, reusability and
+                reliability, rating each out of 5 stars.
               </span>
+
             </div>
+
           </div>
 
           <div className="step-item">
-            <div className="step-num">3</div>
+
+            <div className="step-num">
+              3
+            </div>
 
             <div className="step-text">
-              <strong>Save &amp; Share</strong>
+
+              <strong>
+                Save &amp; Share
+              </strong>
+
               <span>
-                Get a unique shareable link to your toy&apos;s full assessment
-                report.
+                Get a unique shareable link to your toy&apos;s
+                full assessment report.
               </span>
+
             </div>
+
           </div>
+
         </div>
 
         <p
@@ -365,6 +550,7 @@ export default function Home() {
         >
           🌍 Saving toys from landfill · giving joy to children
         </p>
+
       </div>
     </>
   )
