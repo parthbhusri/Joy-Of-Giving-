@@ -6,21 +6,35 @@ import { GoogleGenAI } from '@google/genai'
 
 dotenv.config()
 
+// ----------------------------------------------------
+// Diagnostics
+// ----------------------------------------------------
+
 process.on('exit', (code) => {
   console.log(`[diagnostic] process exiting with code ${code}`)
 })
+
 process.on('uncaughtException', (err) => {
   console.error('[diagnostic] uncaughtException:', err)
 })
+
 process.on('unhandledRejection', (reason) => {
   console.error('[diagnostic] unhandledRejection:', reason)
 })
 
 if (!process.env.GEMINI_API_KEY) {
-  console.error('[diagnostic] GEMINI_API_KEY is missing or empty — check Backend/.env')
+  console.error(
+    '[diagnostic] GEMINI_API_KEY is missing or empty — check Backend/.env'
+  )
 } else {
-  console.log(`[diagnostic] GEMINI_API_KEY loaded, length ${process.env.GEMINI_API_KEY.length}`)
+  console.log(
+    `[diagnostic] GEMINI_API_KEY loaded, length ${process.env.GEMINI_API_KEY.length}`
+  )
 }
+
+// ----------------------------------------------------
+// Express setup
+// ----------------------------------------------------
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -30,22 +44,33 @@ const allowedOrigins = [
   process.env.FRONTEND_URL
 ].filter(Boolean)
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true)
-    } else {
-      callback(new Error('Not allowed by CORS'))
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error('Not allowed by CORS'))
+      }
     }
-  }
-}))
+  })
+)
 
 app.use(express.json())
 
 app.use((req, res, next) => {
-  console.log(`[diagnostic] incoming request: ${req.method} ${req.url} (origin: ${req.headers.origin || 'none'})`)
+  console.log(
+    `[diagnostic] incoming request: ${req.method} ${req.url} (origin: ${
+      req.headers.origin || 'none'
+    })`
+  )
+
   next()
 })
+
+// ----------------------------------------------------
+// File upload
+// ----------------------------------------------------
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -54,33 +79,114 @@ const upload = multer({
   }
 })
 
+// ----------------------------------------------------
+// Gemini
+// ----------------------------------------------------
+
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
 })
 
-async function generateContentWithRetry(params, maxRetries = 2) {
+/*
+  Gemini retry + fallback system
+
+  Primary:
+  gemini-3.8-flash
+
+  Fallback:
+  gemini-3.7-flash
+
+  Retries transient errors such as:
+  - 408
+  - 429
+  - 5xx errors including 503
+
+  Uses exponential backoff with jitter.
+*/
+
+async function generateContentWithRetry(params, maxRetries = 3) {
+  const models = [
+    'gemini-3.8-flash',
+    'gemini-3.7-flash'
+  ]
+
   let lastError
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await ai.models.generateContent(params)
-    } catch (error) {
-      lastError = error
+  for (const model of models) {
+    console.log(`[diagnostic] Trying Gemini model: ${model}`)
 
-      const isRetryable = error.status === 503 || error.status === 429
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          ...params,
+          model
+        })
 
-      if (!isRetryable || attempt === maxRetries) {
-        throw error
+        console.log(
+          `[diagnostic] Gemini request succeeded using ${model}`
+        )
+
+        return response
+      } catch (error) {
+        lastError = error
+
+        const status = error.status
+
+        const isRetryable =
+          status === 408 ||
+          status === 429 ||
+          (status >= 500 && status <= 599)
+
+        console.error(
+          `[diagnostic] ${model} failed with status ${status} ` +
+          `(attempt ${attempt + 1}/${maxRetries + 1})`
+        )
+
+        // Don't retry errors such as bad requests/authentication errors
+        if (!isRetryable) {
+          throw error
+        }
+
+        // Retries exhausted for this model
+        if (attempt === maxRetries) {
+          console.warn(
+            `[diagnostic] ${model} unavailable after retries. ` +
+            `Trying fallback model...`
+          )
+
+          break
+        }
+
+        // Exponential backoff:
+        // ~1 sec
+        // ~2 sec
+        // ~4 sec
+        //
+        // Random jitter helps avoid retrying at exactly the
+        // same moment as other requests.
+
+        const baseDelay = 1000 * Math.pow(2, attempt)
+        const jitter = Math.floor(Math.random() * 500)
+        const delayMs = baseDelay + jitter
+
+        console.log(
+          `[diagnostic] Retrying ${model} in ${delayMs}ms...`
+        )
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, delayMs)
+        )
       }
-
-      const delayMs = 1000 * Math.pow(2, attempt)
-      console.log(`[diagnostic] Gemini call failed (status ${error.status}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`)
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
 
+  // Both models failed
   throw lastError
 }
+
+// ----------------------------------------------------
+// Gemini response cleanup
+// ----------------------------------------------------
 
 function cleanJsonResponse(text) {
   return text
@@ -89,31 +195,51 @@ function cleanJsonResponse(text) {
     .trim()
 }
 
+// ----------------------------------------------------
+// Health check
+// ----------------------------------------------------
+
 app.get('/', (req, res) => {
   res.json({
     message: 'Toy AI backend is running'
   })
 })
 
-app.post('/api/analyze-toy', upload.single('toyImage'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No image file uploaded.'
-      })
-    }
+// ----------------------------------------------------
+// Toy analysis endpoint
+// ----------------------------------------------------
 
-    if (!req.file.mimetype.startsWith('image/')) {
-      return res.status(400).json({
-        success: false,
-        message: 'Uploaded file must be an image.'
-      })
-    }
+app.post(
+  '/api/analyze-toy',
+  upload.single('toyImage'),
+  async (req, res) => {
+    try {
+      // ----------------------------------------------
+      // Validate uploaded image
+      // ----------------------------------------------
 
-    const imageBase64 = req.file.buffer.toString('base64')
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No image file uploaded.'
+        })
+      }
 
-    const prompt = `
+      if (!req.file.mimetype.startsWith('image/')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Uploaded file must be an image.'
+        })
+      }
+
+      const imageBase64 =
+        req.file.buffer.toString('base64')
+
+      // ----------------------------------------------
+      // Gemini prompt
+      // ----------------------------------------------
+
+      const prompt = `
 You are an AI assistant helping a nonprofit organisation assess donated toys from images.
 
 Analyse the toy image and return ONLY valid JSON. Do not include markdown, explanations, or code fences.
@@ -168,71 +294,121 @@ Return JSON using exactly this structure:
 Ratings must be numbers from 1 to 5.
 `
 
-    const response = await generateContentWithRetry({
-      model: 'gemini-3.8-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
+      // ----------------------------------------------
+      // Send image to Gemini
+      // ----------------------------------------------
+
+      const response =
+        await generateContentWithRetry({
+          contents: [
             {
-              inlineData: {
-                mimeType: req.file.mimetype,
-                data: imageBase64
-              }
+              role: 'user',
+              parts: [
+                {
+                  text: prompt
+                },
+                {
+                  inlineData: {
+                    mimeType: req.file.mimetype,
+                    data: imageBase64
+                  }
+                }
+              ]
             }
           ]
-        }
-      ]
-    })
+        })
 
-    const rawText = response.text
-    const cleanedText = cleanJsonResponse(rawText)
+      // ----------------------------------------------
+      // Parse Gemini response
+      // ----------------------------------------------
 
-    let parsedResult
+      const rawText = response.text
 
-    try {
-      parsedResult = JSON.parse(cleanedText)
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError)
-      console.error('Gemini raw response:', rawText)
+      const cleanedText =
+        cleanJsonResponse(rawText)
 
-      return res.status(500).json({
+      let parsedResult
+
+      try {
+        parsedResult =
+          JSON.parse(cleanedText)
+      } catch (parseError) {
+        console.error(
+          'JSON parse error:',
+          parseError
+        )
+
+        console.error(
+          'Gemini raw response:',
+          rawText
+        )
+
+        return res.status(500).json({
+          success: false,
+          message:
+            'AI returned an invalid format. Please try again.'
+        })
+      }
+
+      // ----------------------------------------------
+      // Generate unique result ID
+      // ----------------------------------------------
+
+      parsedResult.id =
+        `toy-${Date.now()}`
+
+      // ----------------------------------------------
+      // Return result
+      // ----------------------------------------------
+
+      return res.json({
+        success: true,
+        result: parsedResult
+      })
+    } catch (error) {
+      console.error(
+        'Gemini API error:',
+        error
+      )
+
+      const isBusy =
+        error.status === 408 ||
+        error.status === 429 ||
+        (error.status >= 500 &&
+          error.status <= 599)
+
+      return res.status(
+        isBusy ? 503 : 500
+      ).json({
         success: false,
-        message: 'AI returned an invalid format. Please try again.',
-        rawResponse: rawText
+
+        message: isBusy
+          ? "Google's AI service is temporarily busy. Please try again in a moment."
+          : 'Failed to analyse toy image.'
       })
     }
-
-    parsedResult.id = `toy-${Date.now()}`
-
-    return res.json({
-      success: true,
-      result: parsedResult
-    })
-  } catch (error) {
-    console.error('Gemini API error:', error)
-
-    const isBusy = error.status === 503 || error.status === 429
-
-    return res.status(500).json({
-      success: false,
-      message: isBusy
-        ? "Google's AI service is busy right now. Please try again in a moment."
-        : 'Failed to analyse toy image.',
-      error: error.message
-    })
   }
-})
+)
+
+// ----------------------------------------------------
+// Start server
+// ----------------------------------------------------
 
 const server = app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`)
+  console.log(
+    `Backend running on http://localhost:${PORT}`
+  )
 })
 
 server.on('error', (err) => {
-  console.error('[diagnostic] server error:', err)
+  console.error(
+    '[diagnostic] server error:',
+    err
+  )
 })
 
 setInterval(() => {
-  console.log('[diagnostic] heartbeat - process still alive')
+  console.log(
+    '[diagnostic] heartbeat - process still alive'
+  )
 }, 5000)
