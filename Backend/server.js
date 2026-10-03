@@ -96,26 +96,30 @@ const ai = new GoogleGenAI({
   Fallback:
   gemini-3.7-flash
 
-  Retries transient errors such as:
-  - 408
-  - 429
-  - 5xx errors including 503
-
-  Uses exponential backoff with jitter.
+  Behaviour:
+  - Maximum 2 attempts per model.
+  - Retries transient 408, 429, and 5xx errors.
+  - Waits about 1 second plus jitter before the single retry.
+  - If the primary model still fails, switches to the fallback model.
 */
 
-async function generateContentWithRetry(params, maxRetries = 3) {
+async function generateContentWithRetry(params) {
   const models = [
     'gemini-3.8-flash',
     'gemini-3.7-flash'
   ]
 
+  const maxAttemptsPerModel = 2
   let lastError
 
   for (const model of models) {
     console.log(`[diagnostic] Trying Gemini model: ${model}`)
 
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    for (
+      let attempt = 1;
+      attempt <= maxAttemptsPerModel;
+      attempt++
+    ) {
       try {
         const response = await ai.models.generateContent({
           ...params,
@@ -139,35 +143,30 @@ async function generateContentWithRetry(params, maxRetries = 3) {
 
         console.error(
           `[diagnostic] ${model} failed with status ${status} ` +
-          `(attempt ${attempt + 1}/${maxRetries + 1})`
+          `(attempt ${attempt}/${maxAttemptsPerModel})`
         )
 
-        // Don't retry errors such as bad requests/authentication errors
+        // Bad request, authentication, permission, etc.
+        // Switching models will not fix these errors.
         if (!isRetryable) {
           throw error
         }
 
-        // Retries exhausted for this model
-        if (attempt === maxRetries) {
+        // This model has used all of its attempts.
+        // Move to the fallback model if one remains.
+        if (attempt === maxAttemptsPerModel) {
           console.warn(
-            `[diagnostic] ${model} unavailable after retries. ` +
+            `[diagnostic] ${model} unavailable after ` +
+            `${maxAttemptsPerModel} attempts. ` +
             `Trying fallback model...`
           )
 
           break
         }
 
-        // Exponential backoff:
-        // ~1 sec
-        // ~2 sec
-        // ~4 sec
-        //
-        // Random jitter helps avoid retrying at exactly the
-        // same moment as other requests.
-
-        const baseDelay = 1000 * Math.pow(2, attempt)
+        // One short retry delay with jitter.
         const jitter = Math.floor(Math.random() * 500)
-        const delayMs = baseDelay + jitter
+        const delayMs = 1000 + jitter
 
         console.log(
           `[diagnostic] Retrying ${model} in ${delayMs}ms...`
@@ -180,7 +179,7 @@ async function generateContentWithRetry(params, maxRetries = 3) {
     }
   }
 
-  // Both models failed
+  // Both models failed.
   throw lastError
 }
 
@@ -391,6 +390,50 @@ Ratings must be numbers from 1 to 5.
 )
 
 // ----------------------------------------------------
+// Upload / Express error handling
+// ----------------------------------------------------
+
+app.use((error, req, res, next) => {
+  if (
+    error instanceof multer.MulterError &&
+    error.code === 'LIMIT_FILE_SIZE'
+  ) {
+    console.warn(
+      '[diagnostic] Upload rejected: image exceeds 5 MB limit'
+    )
+
+    return res.status(413).json({
+      success: false,
+      message:
+        'Image is too large. Please upload an image smaller than 5 MB.'
+    })
+  }
+
+  if (error instanceof multer.MulterError) {
+    console.error(
+      '[diagnostic] Multer error:',
+      error
+    )
+
+    return res.status(400).json({
+      success: false,
+      message:
+        'There was a problem uploading the image.'
+    })
+  }
+
+  console.error(
+    '[diagnostic] Unhandled Express error:',
+    error
+  )
+
+  return res.status(500).json({
+    success: false,
+    message: 'Internal server error.'
+  })
+})
+
+// ----------------------------------------------------
 // Start server
 // ----------------------------------------------------
 
@@ -406,9 +449,3 @@ server.on('error', (err) => {
     err
   )
 })
-
-setInterval(() => {
-  console.log(
-    '[diagnostic] heartbeat - process still alive'
-  )
-}, 5000)
