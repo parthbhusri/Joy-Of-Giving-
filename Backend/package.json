@@ -12,6 +12,7 @@
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
+    "mongoose": "^9.11.1",
     "multer": "latest"
   },
   "devDependencies": {

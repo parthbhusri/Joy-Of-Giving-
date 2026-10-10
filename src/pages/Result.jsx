@@ -5,31 +5,50 @@ import RatingCard from '../components/RatingCard.jsx'
 
 export default function Result() {
   const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
   const { id } = useParams()
 
   useEffect(() => {
-    const data = sessionStorage.getItem('toyResult')
+    async function fetchResult() {
+      try {
+        setLoading(true)
+        setError('')
 
-    if (!data) {
-      return
-    }
-
-    try {
-      const parsedResult = JSON.parse(data)
-
-      // Only display the result if it matches the URL
-      if (parsedResult.id === id) {
-        setResult(parsedResult)
-      } else {
-        console.warn(
-          'Stored toy result does not match the requested result ID.'
+        const response = await fetch(
+          `http://localhost:5000/api/results/${encodeURIComponent(id)}`
         )
 
-        sessionStorage.removeItem('toyResult')
+        const data = await response.json()
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message || 'Failed to load toy assessment.'
+          )
+        }
+
+        setResult(data.result)
+      } catch (error) {
+        console.error(
+          'Failed to retrieve toy result:',
+          error
+        )
+
+        setError(
+          error.message || 'Failed to load toy assessment.'
+        )
+      } finally {
+        setLoading(false)
       }
-    } catch (error) {
-      console.error('Failed to read stored toy result:', error)
-      sessionStorage.removeItem('toyResult')
+    }
+
+    if (id) {
+      fetchResult()
+    } else {
+      setError('No result ID was provided.')
+      setLoading(false)
     }
   }, [id])
 
@@ -60,7 +79,102 @@ export default function Result() {
     return '🔧 Needs Attention'
   }
 
-  if (!result) {
+  async function handleShare() {
+    const shareData = {
+      title: 'Toy Assessment Report',
+      text: 'View this toy assessment report:',
+      url: window.location.href
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+        return
+      }
+
+      await navigator.clipboard.writeText(
+        window.location.href
+      )
+
+      setCopied(true)
+
+      setTimeout(() => {
+        setCopied(false)
+      }, 2000)
+    } catch (error) {
+      // AbortError simply means the user closed the native share sheet.
+      if (error.name === 'AbortError') {
+        return
+      }
+
+      console.error(
+        'Failed to share result:',
+        error
+      )
+
+      try {
+        await navigator.clipboard.writeText(
+          window.location.href
+        )
+
+        setCopied(true)
+
+        setTimeout(() => {
+          setCopied(false)
+        }, 2000)
+      } catch (clipboardError) {
+        console.error(
+          'Failed to copy result link:',
+          clipboardError
+        )
+      }
+    }
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+
+        <div
+          className="page"
+          style={{
+            textAlign: 'center',
+            paddingTop: 60
+          }}
+        >
+          <p
+            style={{
+              fontSize: '3rem',
+              marginBottom: 16
+            }}
+          >
+            🔍
+          </p>
+
+          <h2
+            style={{
+              fontFamily: 'Nunito',
+              color: '#1A1A1A',
+              marginBottom: 10
+            }}
+          >
+            Loading Assessment...
+          </h2>
+
+          <p
+            style={{
+              color: '#6B7280'
+            }}
+          >
+            Retrieving the saved toy report.
+          </p>
+        </div>
+      </>
+    )
+  }
+
+  if (error || !result) {
     return (
       <>
         <Navbar />
@@ -88,7 +202,7 @@ export default function Result() {
               marginBottom: 10
             }}
           >
-            No Result Found
+            Result Not Found
           </h2>
 
           <p
@@ -97,7 +211,8 @@ export default function Result() {
               marginBottom: 24
             }}
           >
-            Please scan a toy first.
+            {error ||
+              'This toy assessment could not be found.'}
           </p>
 
           <Link
@@ -129,23 +244,18 @@ export default function Result() {
       <div className="page">
 
         <div className="result-hero">
-          <span className="result-emoji">🎉</span>
+          <span className="result-emoji">
+            🎉
+          </span>
 
-          <h1>Assessment Complete!</h1>
+          <h1>
+            Assessment Complete!
+          </h1>
 
           <p>
             Here is what our AI found about this toy
           </p>
         </div>
-
-        {result.imageURL && (
-          <div className="toy-image-card">
-            <img
-              src={result.imageURL}
-              alt="Scanned toy"
-            />
-          </div>
-        )}
 
         <div className="overall-badge">
           <div className="badge-label">
@@ -171,7 +281,9 @@ export default function Result() {
             icon="🧼"
             label="Cleanliness"
             rating={result.cleanliness.rating}
-            description={result.cleanliness.description}
+            description={
+              result.cleanliness.description
+            }
           />
 
           <RatingCard
@@ -179,7 +291,9 @@ export default function Result() {
             icon="♻️"
             label="Reusability"
             rating={result.reusability.rating}
-            description={result.reusability.description}
+            description={
+              result.reusability.description
+            }
           />
 
           <RatingCard
@@ -187,7 +301,9 @@ export default function Result() {
             icon="🔧"
             label="Reliability"
             rating={result.reliability.rating}
-            description={result.reliability.description}
+            description={
+              result.reliability.description
+            }
           />
         </div>
 
@@ -213,7 +329,9 @@ export default function Result() {
           </span>
 
           <div className="fun-fact-text">
-            <strong>Did You Know?</strong>
+            <strong>
+              Did You Know?
+            </strong>
 
             {result.fun_fact}
           </div>
@@ -224,9 +342,20 @@ export default function Result() {
             🔗 Save or Share This Report
           </h3>
 
-          <div className="coming-soon-bubble">
-            ✨ Save Report — available soon!
-          </div>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="btn-scan-again"
+            style={{
+              border: 'none',
+              cursor: 'pointer',
+              marginBottom: 12
+            }}
+          >
+            {copied
+              ? '✅ Link Copied!'
+              : '🔗 Share Report'}
+          </button>
 
           <Link
             to="/"
