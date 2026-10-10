@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
 import heroVideo from '../assets/hero-video.mp4'
 import heroPoster from '../assets/hero-poster.jpg'
+import { API_BASE_URL } from '../config/api.js'
 
 export default function Home() {
   const [imageURL, setImageURL] = useState(null)
@@ -127,8 +128,7 @@ export default function Home() {
       )
 
       const response = await fetch(
-         
-        'https://joy-of-giving-backend-144607008974.australia-southeast1.run.app/api/analyze-toy',
+        `${API_BASE_URL}/api/analyze-toy`,
         {
           method: 'POST',
           body: formData

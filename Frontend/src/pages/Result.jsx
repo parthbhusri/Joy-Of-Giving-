@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
 import RatingCard from '../components/RatingCard.jsx'
+import { API_BASE_URL } from '../config/api.js'
 
 export default function Result() {
   const [result, setResult] = useState(null)
@@ -18,7 +19,7 @@ export default function Result() {
         setError('')
 
         const response = await fetch(
-          `http://localhost:5000/api/results/${encodeURIComponent(id)}`
+          `${API_BASE_URL}/api/results/${encodeURIComponent(id)}`
         )
 
         const data = await response.json()
