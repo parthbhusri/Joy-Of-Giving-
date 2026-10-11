@@ -6,6 +6,7 @@ import connectDB from './config/db.js'
 import { GoogleGenAI } from '@google/genai'
 import { randomUUID } from 'crypto'
 import ToyScan from './models/ToyScan.js'
+import normalizeScan from './utils/normalizeScan.js'
 
 dotenv.config()
 
@@ -360,44 +361,23 @@ Ratings must be numbers from 1 to 5.
 
       const publicId = randomUUID()
 
-      parsedResult.id = publicId
+      // Clean up Gemini's reply so one odd value can't stop a good scan
+      // from being saved.
+      const result = {
+        ...normalizeScan(parsedResult),
+        id: publicId
+      }
 
       // ----------------------------------------------
       // Save assessment to MongoDB
       // ----------------------------------------------
 
       try {
+        const { id, ...scanFields } = result
+
         const savedScan = await ToyScan.create({
           publicId,
-          toyCategory: parsedResult.toyCategory,
-          toyNameGuess: parsedResult.toyNameGuess,
-          conditionSummary: parsedResult.conditionSummary,
-          cleanliness: parsedResult.cleanliness,
-          reusability: parsedResult.reusability,
-          reliability: parsedResult.reliability,
-          repairability: parsedResult.repairability,
-          repairabilityReason:
-            parsedResult.repairabilityReason,
-          suggestedActions:
-            parsedResult.suggestedActions,
-          useCase:
-            parsedResult.useCase,
-          suggestedAgeRange:
-            parsedResult.suggestedAgeRange,
-          visibleSafetyConcerns:
-            parsedResult.visibleSafetyConcerns,
-          donationReadiness:
-            parsedResult.donationReadiness,
-          battery_operated:
-            parsedResult.battery_operated,
-          battery_note:
-            parsedResult.battery_note,
-          confidence:
-            parsedResult.confidence,
-          staffReviewRequired:
-            parsedResult.staffReviewRequired,
-          fun_fact:
-            parsedResult.fun_fact
+          ...scanFields
         })
 
         console.log(
@@ -422,7 +402,7 @@ Ratings must be numbers from 1 to 5.
 
       return res.json({
         success: true,
-        result: parsedResult
+        result
       })
     } catch (error) {
       console.error(
