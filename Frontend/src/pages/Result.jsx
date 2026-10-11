@@ -18,11 +18,34 @@ export default function Result() {
         setLoading(true)
         setError('')
 
+        // A scan you just ran is kept in sessionStorage by Home.jsx, so show
+        // it straight away. Shared links (no matching local copy) are loaded
+        // from the backend/database instead.
+        try {
+          const cached = JSON.parse(
+            sessionStorage.getItem('toyResult') || 'null'
+          )
+
+          if (cached && cached.id === id) {
+            setResult(cached)
+            return
+          }
+        } catch {
+          // Ignore unreadable cache and fall through to the backend.
+        }
+
         const response = await fetch(
           `${API_BASE_URL}/api/results/${encodeURIComponent(id)}`
         )
 
-        const data = await response.json()
+        let data
+        try {
+          data = await response.json()
+        } catch {
+          throw new Error(
+            'The server could not load saved results. The backend may need to be updated or restarted.'
+          )
+        }
 
         if (!response.ok || !data.success) {
           throw new Error(
