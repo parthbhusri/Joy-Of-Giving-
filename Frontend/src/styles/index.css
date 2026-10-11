@@ -678,6 +678,74 @@ h1, h2, h3, h4, .brand {
 }
 .btn-scan-again:hover { background: #000; }
 
+.btn-scan-again-full {
+  width: 100%;
+  justify-content: center;
+  padding: 13px 16px;
+}
+
+.share-card-sub {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: -4px 0 14px;
+}
+
+.report-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.btn-save,
+.btn-share {
+  padding: 13px 10px;
+  border-radius: 10px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn-save {
+  background: var(--coral-strong);
+  color: white;
+  border: 2px solid var(--coral-strong);
+  box-shadow: 0 6px 16px rgba(184,80,92,0.25);
+}
+.btn-save:hover {
+  background: #a1444f;
+  border-color: #a1444f;
+  transform: translateY(-1px);
+}
+.btn-share {
+  background: var(--white);
+  color: var(--coral-strong);
+  border: 2px solid var(--coral-strong);
+}
+.btn-share:hover {
+  background: var(--cream);
+  transform: translateY(-1px);
+}
+.btn-save:focus-visible,
+.btn-share:focus-visible {
+  outline: 3px solid var(--slate);
+  outline-offset: 2px;
+}
+
+@media (max-width: 340px) {
+  .report-actions { grid-template-columns: 1fr; }
+}
+
+/* Elements that only appear in the saved / printed report */
+.print-only { display: none; }
+
 .hidden { display: none; }
 
 .toast {
@@ -699,4 +767,139 @@ h1, h2, h3, h4, .brand {
 @media (max-width: 400px) {
   .hero h1 { font-size: 2.3rem; }
   .mission-label { font-size: 0.72rem; }
+}
+
+/* ── SAVED / PRINTED REPORT (Save as PDF) ── */
+@page { size: A4; margin: 14mm; }
+
+@media print {
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body { background: var(--white); min-height: 0; }
+
+  .navbar,
+  .result-hero,
+  .share-card,
+  .toast { display: none !important; }
+
+  .print-only { display: block !important; }
+
+  .page { max-width: 640px; padding: 0; }
+
+  .overall-badge,
+  .rating-card,
+  .battery-note,
+  .fun-fact,
+  .report-section,
+  .report-grid,
+  .report-disclaimer { break-inside: avoid; }
+
+  .overall-badge,
+  .rating-card,
+  .report-details { box-shadow: none; }
+
+  .print-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+    border-bottom: 3px solid var(--coral);
+  }
+  .print-logo { height: 54px; width: auto; }
+  .print-header-text { text-align: right; }
+  .print-header-text strong {
+    display: block;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    font-size: 1.25rem;
+    color: var(--ink);
+  }
+  .print-header-text span { font-size: 0.85rem; color: var(--muted); }
+
+  .print-toy-name { margin-bottom: 16px; }
+  .print-toy-name h2 {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    font-size: 1.6rem;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .print-toy-name span {
+    display: inline-block;
+    background: var(--cream);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--mint-strong);
+  }
+
+  .report-details {
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-top: 6px;
+    break-inside: avoid;
+  }
+  .report-details-title {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    font-size: 1.05rem;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .report-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 18px;
+    margin-bottom: 14px;
+  }
+  .report-grid dt {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .report-grid dd { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+
+  .report-section { margin-bottom: 12px; }
+  .report-section h4 {
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--coral-strong);
+    margin-bottom: 4px;
+  }
+  .report-section p,
+  .report-section li {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+  .report-section ul { padding-left: 18px; }
+
+  .report-disclaimer {
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--muted);
+    background: var(--cream);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-top: 6px;
+  }
+  .report-link {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 10px;
+    word-break: break-all;
+  }
 }
