@@ -43,6 +43,37 @@ const SparkIcon = ({ size }) => (
   </Icon>
 )
 
+// Shrinks the scanned photo to a small JPEG data URL so it can be kept with
+// the result (sessionStorage is small, and blob: URLs die on refresh).
+function makeThumbnail(blobUrl, maxSize = 900, quality = 0.8) {
+  return new Promise((resolve) => {
+    const img = new Image()
+
+    img.onload = () => {
+      try {
+        const scale = Math.min(
+          1,
+          maxSize / Math.max(img.width, img.height)
+        )
+        const canvas = document.createElement('canvas')
+
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas
+          .getContext('2d')
+          .drawImage(img, 0, 0, canvas.width, canvas.height)
+
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      } catch {
+        resolve(null)
+      }
+    }
+
+    img.onerror = () => resolve(null)
+    img.src = blobUrl
+  })
+}
+
 export default function Home() {
   const [imageURL, setImageURL] = useState(null)
   const [image, setImage] = useState(null)
@@ -182,13 +213,26 @@ export default function Home() {
         )
       }
 
-      sessionStorage.setItem(
-        'toyResult',
-        JSON.stringify({
-          ...data.result,
-          imageURL
-        })
-      )
+      // Keep the photo that was scanned with its result so the Result page
+      // can show it. (The backend's saved copy, imageUrl, takes over for
+      // shared links once photo storage is switched on.)
+      const photo = await makeThumbnail(imageURL)
+
+      try {
+        sessionStorage.setItem(
+          'toyResult',
+          JSON.stringify({
+            ...data.result,
+            photo
+          })
+        )
+      } catch {
+        // Storage full: still show the result, just without the cached photo.
+        sessionStorage.setItem(
+          'toyResult',
+          JSON.stringify(data.result)
+        )
+      }
 
       navigate(
         `/result/${data.result.id}`

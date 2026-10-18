@@ -660,7 +660,11 @@ h1, h2, h3, h4, .brand {
 
   .overall-badge,
   .rating-card,
-  .report-details { box-shadow: none; }
+  .report-details,
+  .toy-image-card { box-shadow: none; }
+
+  .toy-image-card { break-inside: avoid; margin-bottom: 14px; }
+  .toy-image-card img { height: 240px; }
 
   .print-header {
     display: flex !important;

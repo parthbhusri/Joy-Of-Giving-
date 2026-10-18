@@ -11,6 +11,8 @@ export default function Result() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
 
+  const [photoFailed, setPhotoFailed] = useState(false)
+
   const { id } = useParams()
 
   useEffect(() => {
@@ -76,6 +78,13 @@ export default function Result() {
       setLoading(false)
     }
   }, [id])
+
+  // Photo of the scanned toy: the copy saved by the backend (works on shared
+  // links) when there is one, otherwise the copy kept from this scan.
+  const photoSrc =
+    result && result.imageUrl && !photoFailed
+      ? `${API_BASE_URL}${result.imageUrl}`
+      : result?.photo || null
 
   function getOverall(r) {
     return (
@@ -308,6 +317,20 @@ export default function Result() {
             {result.toyCategory && (
               <span>{result.toyCategory}</span>
             )}
+          </div>
+        )}
+
+        {photoSrc && (
+          <div className="toy-image-card">
+            <img
+              src={photoSrc}
+              alt={
+                result.toyNameGuess
+                  ? `Photo of ${result.toyNameGuess}`
+                  : 'Scanned toy'
+              }
+              onError={() => setPhotoFailed(true)}
+            />
           </div>
         )}
 
