@@ -10,20 +10,22 @@ export default function Result() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
-
   const [photoFailed, setPhotoFailed] = useState(false)
 
   const { id } = useParams()
 
   useEffect(() => {
+    setPhotoFailed(false)
+
     async function fetchResult() {
       try {
         setLoading(true)
         setError('')
 
-        // A scan you just ran is kept in sessionStorage by Home.jsx, so show
-        // it straight away. Shared links (no matching local copy) are loaded
-        // from the backend/database instead.
+        // A scan you just ran is kept in sessionStorage by Home.jsx,
+        // so show it straight away.
+        // Shared links with no matching local copy are loaded from
+        // the backend/database instead.
         try {
           const cached = JSON.parse(
             sessionStorage.getItem('toyResult') || 'null'
@@ -42,6 +44,7 @@ export default function Result() {
         )
 
         let data
+
         try {
           data = await response.json()
         } catch {
@@ -79,12 +82,14 @@ export default function Result() {
     }
   }, [id])
 
-  // Photo of the scanned toy: the copy saved by the backend (works on shared
-  // links) when there is one, otherwise the copy kept from this scan.
+  // The scanned image itself is stored privately in Google Cloud Storage.
+  // The frontend does not access the bucket directly.
+  // Instead, our Express backend retrieves the image using the same
+  // public result ID used by the MongoDB assessment.
   const photoSrc =
-    result && result.imageUrl && !photoFailed
-      ? `${API_BASE_URL}${result.imageUrl}`
-      : result?.photo || null
+    result && id && !photoFailed
+      ? `${API_BASE_URL}/api/results/${encodeURIComponent(id)}/image`
+      : null
 
   function getOverall(r) {
     return (
@@ -113,9 +118,8 @@ export default function Result() {
     return '🔧 Needs Attention'
   }
 
-  // Opens the browser's print dialog, which has a "Save as PDF" destination
-  // (on phones: Share / Save to Files). The print-only styles in index.css
-  // turn the page into a clean report.
+  // Opens the browser's print dialog, which has a
+  // "Save as PDF" destination.
   function handleSave() {
     const previousTitle = document.title
     const toyName = (result?.toyNameGuess || 'Toy').trim()
@@ -155,7 +159,8 @@ export default function Result() {
         setCopied(false)
       }, 2000)
     } catch (error) {
-      // AbortError simply means the user closed the native share sheet.
+      // AbortError simply means the user closed
+      // the native share sheet.
       if (error.name === 'AbortError') {
         return
       }
@@ -297,10 +302,17 @@ export default function Result() {
       <div className="page">
 
         <div className="print-only print-header">
-          <img src={logo} alt="Joy of Giving" className="print-logo" />
+          <img
+            src={logo}
+            alt="Joy of Giving"
+            className="print-logo"
+          />
 
           <div className="print-header-text">
-            <strong>Toy Assessment Report</strong>
+            <strong>
+              Toy Assessment Report
+            </strong>
+
             <span>
               {new Date().toLocaleDateString('en-AU', {
                 day: 'numeric',
@@ -313,9 +325,14 @@ export default function Result() {
 
         {result.toyNameGuess && (
           <div className="print-only print-toy-name">
-            <h2>{result.toyNameGuess}</h2>
+            <h2>
+              {result.toyNameGuess}
+            </h2>
+
             {result.toyCategory && (
-              <span>{result.toyCategory}</span>
+              <span>
+                {result.toyCategory}
+              </span>
             )}
           </div>
         )}
@@ -429,85 +446,137 @@ export default function Result() {
         </div>
 
         <div className="print-only report-details">
-          <h3 className="report-details-title">Toy Details</h3>
+          <h3 className="report-details-title">
+            Toy Details
+          </h3>
 
           <dl className="report-grid">
             {result.donationReadiness && (
               <div>
-                <dt>Donation readiness</dt>
-                <dd>{result.donationReadiness}</dd>
+                <dt>
+                  Donation readiness
+                </dt>
+
+                <dd>
+                  {result.donationReadiness}
+                </dd>
               </div>
             )}
 
             {result.repairability && (
               <div>
-                <dt>Repairability</dt>
-                <dd>{result.repairability}</dd>
+                <dt>
+                  Repairability
+                </dt>
+
+                <dd>
+                  {result.repairability}
+                </dd>
               </div>
             )}
 
             {result.suggestedAgeRange && (
               <div>
-                <dt>Suggested age range</dt>
-                <dd>{result.suggestedAgeRange}</dd>
+                <dt>
+                  Suggested age range
+                </dt>
+
+                <dd>
+                  {result.suggestedAgeRange}
+                </dd>
               </div>
             )}
 
             {result.confidence && (
               <div>
-                <dt>AI confidence</dt>
-                <dd>{result.confidence}</dd>
+                <dt>
+                  AI confidence
+                </dt>
+
+                <dd>
+                  {result.confidence}
+                </dd>
               </div>
             )}
           </dl>
 
           {result.conditionSummary && (
             <div className="report-section">
-              <h4>Condition</h4>
-              <p>{result.conditionSummary}</p>
+              <h4>
+                Condition
+              </h4>
+
+              <p>
+                {result.conditionSummary}
+              </p>
             </div>
           )}
 
           {result.repairabilityReason && (
             <div className="report-section">
-              <h4>Repair notes</h4>
-              <p>{result.repairabilityReason}</p>
+              <h4>
+                Repair notes
+              </h4>
+
+              <p>
+                {result.repairabilityReason}
+              </p>
             </div>
           )}
 
           {result.useCase && (
             <div className="report-section">
-              <h4>Suggested use</h4>
-              <p>{result.useCase}</p>
+              <h4>
+                Suggested use
+              </h4>
+
+              <p>
+                {result.useCase}
+              </p>
             </div>
           )}
 
           {result.suggestedActions?.length > 0 && (
             <div className="report-section">
-              <h4>Suggested actions</h4>
+              <h4>
+                Suggested actions
+              </h4>
+
               <ul>
-                {result.suggestedActions.map((action, i) => (
-                  <li key={i}>{action}</li>
-                ))}
+                {result.suggestedActions.map(
+                  (action, i) => (
+                    <li key={i}>
+                      {action}
+                    </li>
+                  )
+                )}
               </ul>
             </div>
           )}
 
           {result.visibleSafetyConcerns?.length > 0 && (
             <div className="report-section">
-              <h4>Visible safety concerns</h4>
+              <h4>
+                Visible safety concerns
+              </h4>
+
               <ul>
-                {result.visibleSafetyConcerns.map((concern, i) => (
-                  <li key={i}>{concern}</li>
-                ))}
+                {result.visibleSafetyConcerns.map(
+                  (concern, i) => (
+                    <li key={i}>
+                      {concern}
+                    </li>
+                  )
+                )}
               </ul>
             </div>
           )}
 
           <p className="report-disclaimer">
-            This assessment was generated by AI from a single photo and is a
-            guide only. It is not a safety guarantee &mdash; staff review is
-            required before any toy is donated.
+            This assessment was generated by AI from a single
+            photo and is a guide only. It is not a safety
+            guarantee &mdash; staff review is required before
+            any toy is donated.
           </p>
 
           <p className="report-link">
@@ -521,7 +590,8 @@ export default function Result() {
           </h3>
 
           <p className="share-card-sub">
-            Keep a PDF copy on your device or send the link to someone.
+            Keep a PDF copy on your device or send the link
+            to someone.
           </p>
 
           <div className="report-actions">
