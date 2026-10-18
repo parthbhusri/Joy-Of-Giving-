@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
 import RatingCard from '../components/RatingCard.jsx'
+import { API_BASE_URL } from '../config/api.js'
+import logo from '../assets/logo.png'
 
 export default function Result() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+
+  const [photoFailed, setPhotoFailed] = useState(false)
 
   const { id } = useParams()
 
@@ -17,11 +21,34 @@ export default function Result() {
         setLoading(true)
         setError('')
 
+        // A scan you just ran is kept in sessionStorage by Home.jsx, so show
+        // it straight away. Shared links (no matching local copy) are loaded
+        // from the backend/database instead.
+        try {
+          const cached = JSON.parse(
+            sessionStorage.getItem('toyResult') || 'null'
+          )
+
+          if (cached && cached.id === id) {
+            setResult(cached)
+            return
+          }
+        } catch {
+          // Ignore unreadable cache and fall through to the backend.
+        }
+
         const response = await fetch(
-          `http://localhost:5000/api/results/${encodeURIComponent(id)}`
+          `${API_BASE_URL}/api/results/${encodeURIComponent(id)}`
         )
 
-        const data = await response.json()
+        let data
+        try {
+          data = await response.json()
+        } catch {
+          throw new Error(
+            'The server could not load saved results. The backend may need to be updated or restarted.'
+          )
+        }
 
         if (!response.ok || !data.success) {
           throw new Error(
@@ -52,6 +79,13 @@ export default function Result() {
     }
   }, [id])
 
+  // Photo of the scanned toy: the copy saved by the backend (works on shared
+  // links) when there is one, otherwise the copy kept from this scan.
+  const photoSrc =
+    result && result.imageUrl && !photoFailed
+      ? `${API_BASE_URL}${result.imageUrl}`
+      : result?.photo || null
+
   function getOverall(r) {
     return (
       (
@@ -77,6 +111,25 @@ export default function Result() {
     if (score >= 2.5) return '⚠️ Fair Condition'
 
     return '🔧 Needs Attention'
+  }
+
+  // Opens the browser's print dialog, which has a "Save as PDF" destination
+  // (on phones: Share / Save to Files). The print-only styles in index.css
+  // turn the page into a clean report.
+  function handleSave() {
+    const previousTitle = document.title
+    const toyName = (result?.toyNameGuess || 'Toy').trim()
+
+    // The browser uses the page title as the default file name.
+    document.title = `Joy of Giving - ${toyName} Assessment`
+
+    function restoreTitle() {
+      document.title = previousTitle
+      window.removeEventListener('afterprint', restoreTitle)
+    }
+
+    window.addEventListener('afterprint', restoreTitle)
+    window.print()
   }
 
   async function handleShare() {
@@ -243,6 +296,44 @@ export default function Result() {
 
       <div className="page">
 
+        <div className="print-only print-header">
+          <img src={logo} alt="Joy of Giving" className="print-logo" />
+
+          <div className="print-header-text">
+            <strong>Toy Assessment Report</strong>
+            <span>
+              {new Date().toLocaleDateString('en-AU', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              })}
+            </span>
+          </div>
+        </div>
+
+        {result.toyNameGuess && (
+          <div className="print-only print-toy-name">
+            <h2>{result.toyNameGuess}</h2>
+            {result.toyCategory && (
+              <span>{result.toyCategory}</span>
+            )}
+          </div>
+        )}
+
+        {photoSrc && (
+          <div className="toy-image-card">
+            <img
+              src={photoSrc}
+              alt={
+                result.toyNameGuess
+                  ? `Photo of ${result.toyNameGuess}`
+                  : 'Scanned toy'
+              }
+              onError={() => setPhotoFailed(true)}
+            />
+          </div>
+        )}
+
         <div className="result-hero">
           <span className="result-emoji">
             🎉
@@ -337,29 +428,125 @@ export default function Result() {
           </div>
         </div>
 
+        <div className="print-only report-details">
+          <h3 className="report-details-title">Toy Details</h3>
+
+          <dl className="report-grid">
+            {result.donationReadiness && (
+              <div>
+                <dt>Donation readiness</dt>
+                <dd>{result.donationReadiness}</dd>
+              </div>
+            )}
+
+            {result.repairability && (
+              <div>
+                <dt>Repairability</dt>
+                <dd>{result.repairability}</dd>
+              </div>
+            )}
+
+            {result.suggestedAgeRange && (
+              <div>
+                <dt>Suggested age range</dt>
+                <dd>{result.suggestedAgeRange}</dd>
+              </div>
+            )}
+
+            {result.confidence && (
+              <div>
+                <dt>AI confidence</dt>
+                <dd>{result.confidence}</dd>
+              </div>
+            )}
+          </dl>
+
+          {result.conditionSummary && (
+            <div className="report-section">
+              <h4>Condition</h4>
+              <p>{result.conditionSummary}</p>
+            </div>
+          )}
+
+          {result.repairabilityReason && (
+            <div className="report-section">
+              <h4>Repair notes</h4>
+              <p>{result.repairabilityReason}</p>
+            </div>
+          )}
+
+          {result.useCase && (
+            <div className="report-section">
+              <h4>Suggested use</h4>
+              <p>{result.useCase}</p>
+            </div>
+          )}
+
+          {result.suggestedActions?.length > 0 && (
+            <div className="report-section">
+              <h4>Suggested actions</h4>
+              <ul>
+                {result.suggestedActions.map((action, i) => (
+                  <li key={i}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.visibleSafetyConcerns?.length > 0 && (
+            <div className="report-section">
+              <h4>Visible safety concerns</h4>
+              <ul>
+                {result.visibleSafetyConcerns.map((concern, i) => (
+                  <li key={i}>{concern}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="report-disclaimer">
+            This assessment was generated by AI from a single photo and is a
+            guide only. It is not a safety guarantee &mdash; staff review is
+            required before any toy is donated.
+          </p>
+
+          <p className="report-link">
+            View online: {window.location.href}
+          </p>
+        </div>
+
         <div className="share-card">
           <h3>
             🔗 Save or Share This Report
           </h3>
 
-          <button
-            type="button"
-            onClick={handleShare}
-            className="btn-scan-again"
-            style={{
-              border: 'none',
-              cursor: 'pointer',
-              marginBottom: 12
-            }}
-          >
-            {copied
-              ? '✅ Link Copied!'
-              : '🔗 Share Report'}
-          </button>
+          <p className="share-card-sub">
+            Keep a PDF copy on your device or send the link to someone.
+          </p>
+
+          <div className="report-actions">
+            <button
+              type="button"
+              onClick={handleSave}
+              className="btn-save"
+            >
+              💾 Save as PDF
+            </button>
+
+            <button
+              type="button"
+              onClick={handleShare}
+              className="btn-share"
+            >
+              {copied
+                ? '✅ Link Copied!'
+                : '🔗 Share Link'}
+            </button>
+          </div>
 
           <Link
             to="/"
-            className="btn-scan-again"
+            className="btn-scan-again btn-scan-again-full"
           >
             🔄 Scan Again
           </Link>

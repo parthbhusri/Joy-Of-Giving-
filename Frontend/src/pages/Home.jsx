@@ -1,8 +1,78 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
-import heroVideo from '../assets/hero-video.mp4'
-import heroPoster from '../assets/hero-poster.jpg'
+import { API_BASE_URL } from '../config/api.js'
+
+// Simple line icons (match the Joy of Giving look; they take the text colour).
+function Icon({ size = 18, children }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {children}
+    </svg>
+  )
+}
+
+const CameraIcon = ({ size }) => (
+  <Icon size={size}>
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <circle cx="12" cy="13" r="4" />
+  </Icon>
+)
+
+const GalleryIcon = ({ size }) => (
+  <Icon size={size}>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <path d="M21 15l-5-5L5 21" />
+  </Icon>
+)
+
+const SparkIcon = ({ size }) => (
+  <Icon size={size}>
+    <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+  </Icon>
+)
+
+// Shrinks the scanned photo to a small JPEG data URL so it can be kept with
+// the result (sessionStorage is small, and blob: URLs die on refresh).
+function makeThumbnail(blobUrl, maxSize = 900, quality = 0.8) {
+  return new Promise((resolve) => {
+    const img = new Image()
+
+    img.onload = () => {
+      try {
+        const scale = Math.min(
+          1,
+          maxSize / Math.max(img.width, img.height)
+        )
+        const canvas = document.createElement('canvas')
+
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas
+          .getContext('2d')
+          .drawImage(img, 0, 0, canvas.width, canvas.height)
+
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      } catch {
+        resolve(null)
+      }
+    }
+
+    img.onerror = () => resolve(null)
+    img.src = blobUrl
+  })
+}
 
 export default function Home() {
   const [imageURL, setImageURL] = useState(null)
@@ -127,8 +197,7 @@ export default function Home() {
       )
 
       const response = await fetch(
-         
-        'https://joy-of-giving-backend-144607008974.australia-southeast1.run.app/api/analyze-toy',
+        `${API_BASE_URL}/api/analyze-toy`,
         {
           method: 'POST',
           body: formData
@@ -144,13 +213,26 @@ export default function Home() {
         )
       }
 
-      sessionStorage.setItem(
-        'toyResult',
-        JSON.stringify({
-          ...data.result,
-          imageURL
-        })
-      )
+      // Keep the photo that was scanned with its result so the Result page
+      // can show it. (The backend's saved copy, imageUrl, takes over for
+      // shared links once photo storage is switched on.)
+      const photo = await makeThumbnail(imageURL)
+
+      try {
+        sessionStorage.setItem(
+          'toyResult',
+          JSON.stringify({
+            ...data.result,
+            photo
+          })
+        )
+      } catch {
+        // Storage full: still show the result, just without the cached photo.
+        sessionStorage.setItem(
+          'toyResult',
+          JSON.stringify(data.result)
+        )
+      }
 
       navigate(
         `/result/${data.result.id}`
@@ -219,37 +301,22 @@ export default function Home() {
     )
   }
 
+  const canAnalyse = Boolean(imageURL) && !cameraOpen
+
+  let hint = 'Ready when you are'
+  if (cameraOpen) hint = 'Capture a photo to continue'
+  else if (!imageURL) hint = 'Add a photo to switch this on'
+
   return (
     <>
       <Navbar />
 
-      <div
-        className="hero"
-        style={{
-          backgroundImage: `url(${heroPoster})`
-        }}
-      >
-        <video
-          className="hero-video"
-          autoPlay
-          loop
-          muted
-          playsInline
-          poster={heroPoster}
-        >
-          <source
-            src={heroVideo}
-            type="video/mp4"
-          />
-        </video>
+      <div className="page home-page">
 
-        <div className="hero-video-overlay" />
-
-        <div className="hero-content">
-
-          <span className="hero-toys">
-            🧸 🚂 🎮 🪀
-          </span>
+        <div className="home-intro">
+          <div className="section-eyebrow">
+            AI Toy Scanner
+          </div>
 
           <h1>
             Giving Preloved Toys
@@ -259,71 +326,10 @@ export default function Home() {
             </span>
           </h1>
 
-          <p className="hero-desc">
-            Scan any donated toy with your phone camera.
-            Our AI rates its cleanliness, reusability and
-            reliability — instantly.
+          <p>
+            Take or upload a photo. Our AI rates its
+            cleanliness, reusability and reliability.
           </p>
-
-          <button
-            className="hero-cta"
-            onClick={openCamera}
-          >
-            📷 Scan a Toy Now
-          </button>
-
-        </div>
-      </div>
-
-      <div className="mission-strip">
-
-        <div className="mission-item">
-          <span className="mission-icon">
-            🚂
-          </span>
-
-          <span className="mission-label">
-            Our Mission
-          </span>
-        </div>
-
-        <div className="mission-item">
-          <span className="mission-icon">
-            🎁
-          </span>
-
-          <span className="mission-label">
-            Donate a Toy
-          </span>
-        </div>
-
-        <div className="mission-item">
-          <span className="mission-icon">
-            🤝
-          </span>
-
-          <span className="mission-label">
-            Volunteer
-          </span>
-        </div>
-
-      </div>
-
-      <div className="page">
-
-        <div
-          className="section-header"
-          style={{
-            marginTop: 24
-          }}
-        >
-          <div className="section-eyebrow">
-            AI Toy Scanner
-          </div>
-
-          <h2>
-            Scan, Rate &amp; Share
-          </h2>
         </div>
 
         <div
@@ -375,11 +381,11 @@ export default function Home() {
                 <div className="camera-corners" />
 
                 <span className="camera-icon">
-                  📷
+                  <CameraIcon size={52} />
                 </span>
 
                 <span className="camera-hint">
-                  Tap to scan or drop image here
+                  Take a photo or drop an image here
                 </span>
               </>
 
@@ -414,14 +420,16 @@ export default function Home() {
                 className="btn-primary"
                 onClick={openCamera}
               >
-                📷 Use Camera
+                <CameraIcon />
+                Use Camera
               </button>
 
               <button
                 className="btn-secondary"
                 onClick={openGallery}
               >
-                🖼️ Gallery
+                <GalleryIcon />
+                Gallery
               </button>
 
             </div>
@@ -451,105 +459,17 @@ export default function Home() {
           }}
         />
 
-        {imageURL && !cameraOpen && (
-
-          <button
-            className="btn-scan"
-            onClick={handleScan}
-          >
-            ✨ Analyse This Toy
-          </button>
-
-        )}
-
-        <div className="section-header">
-
-          <div className="section-eyebrow">
-            Simple Steps
-          </div>
-
-          <h2>
-            How It Works
-          </h2>
-
-        </div>
-
-        <div className="steps">
-
-          <div className="step-item">
-
-            <div className="step-num">
-              1
-            </div>
-
-            <div className="step-text">
-
-              <strong>
-                Take a Photo
-              </strong>
-
-              <span>
-                Use your phone camera or upload an image
-                of the donated toy.
-              </span>
-
-            </div>
-
-          </div>
-
-          <div className="step-item">
-
-            <div className="step-num">
-              2
-            </div>
-
-            <div className="step-text">
-
-              <strong>
-                AI Scans the Toy
-              </strong>
-
-              <span>
-                Our AI checks cleanliness, reusability and
-                reliability, rating each out of 5 stars.
-              </span>
-
-            </div>
-
-          </div>
-
-          <div className="step-item">
-
-            <div className="step-num">
-              3
-            </div>
-
-            <div className="step-text">
-
-              <strong>
-                Save &amp; Share
-              </strong>
-
-              <span>
-                Get a unique shareable link to your toy&apos;s
-                full assessment report.
-              </span>
-
-            </div>
-
-          </div>
-
-        </div>
-
-        <p
-          style={{
-            textAlign: 'center',
-            color: '#9CA3AF',
-            fontSize: '0.8rem',
-            marginTop: 8
-          }}
+        <button
+          className="btn-scan"
+          onClick={handleScan}
+          disabled={!canAnalyse}
         >
-          🌍 Saving toys from landfill · giving joy to children
+          <SparkIcon size={20} />
+          Analyse This Toy
+        </button>
+
+        <p className="scan-hint">
+          {hint}
         </p>
 
       </div>
