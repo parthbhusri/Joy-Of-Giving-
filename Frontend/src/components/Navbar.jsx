@@ -6,7 +6,6 @@ export default function Navbar() {
       <div className="navbar-left">
         <img src={logo} alt="Joy of Giving" className="navbar-logo-img" />
       </div>
-      <div className="navbar-badge">Scan a Toy ✨</div>
     </nav>
   )
 }
