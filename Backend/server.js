@@ -7,6 +7,13 @@ import { GoogleGenAI } from '@google/genai'
 import { randomUUID } from 'crypto'
 import ToyScan from './models/ToyScan.js'
 import normalizeScan from './utils/normalizeScan.js'
+import {
+  saveImage,
+  openImage,
+  deleteImage,
+  isStorableImage,
+  describeStorage
+} from './utils/imageStorage.js'
 
 dotenv.config()
 
@@ -369,25 +376,50 @@ Ratings must be numbers from 1 to 5.
       }
 
       // ----------------------------------------------
-      // Save assessment to MongoDB
+      // Save the photo, then the assessment, and link them
       // ----------------------------------------------
 
+      let storedImage = null
+
       try {
+        if (isStorableImage(req.file.mimetype)) {
+          storedImage = await saveImage({
+            publicId,
+            buffer: req.file.buffer,
+            mimeType: req.file.mimetype
+          })
+
+          console.log(
+            `[storage] Photo saved: ${storedImage.imageKey}`
+          )
+        } else {
+          console.warn(
+            `[storage] Photo not stored (unsupported type ${req.file.mimetype})`
+          )
+        }
+
         const { id, ...scanFields } = result
 
         const savedScan = await ToyScan.create({
           publicId,
-          ...scanFields
+          ...scanFields,
+          ...(storedImage ?? {})
         })
 
         console.log(
           `[database] Toy scan saved: ${savedScan.publicId}`
         )
-      } catch (databaseError) {
+      } catch (saveError) {
         console.error(
           '[database] Failed to save toy scan:',
-          databaseError
+          saveError
         )
+
+        // Keep the photo store and the database in step: don't leave an
+        // orphaned photo behind if the record wasn't saved.
+        if (storedImage) {
+          await deleteImage(storedImage.imageKey)
+        }
 
         return res.status(500).json({
           success: false,
@@ -402,7 +434,12 @@ Ratings must be numbers from 1 to 5.
 
       return res.json({
         success: true,
-        result
+        result: {
+          ...result,
+          ...(storedImage && {
+            imageUrl: `/api/results/${publicId}/image`
+          })
+        }
       })
     } catch (error) {
       console.error(
@@ -454,11 +491,18 @@ app.get('/api/results/:publicId', async (req, res) => {
       })
     }
 
+    // Internal storage details stay on the server; the browser just gets a
+    // link it can use to fetch the photo.
+    const { imageKey, imageMimeType, ...publicScan } = scan
+
     return res.json({
       success: true,
       result: {
-        ...scan,
-        id: scan.publicId
+        ...publicScan,
+        id: scan.publicId,
+        ...(imageKey && {
+          imageUrl: `/api/results/${scan.publicId}/image`
+        })
       }
     })
   } catch (error) {
@@ -470,6 +514,65 @@ app.get('/api/results/:publicId', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve toy scan.'
+    })
+  }
+})
+
+// ----------------------------------------------------
+// Retrieve the photo that belongs to a saved toy result
+// ----------------------------------------------------
+
+app.get('/api/results/:publicId/image', async (req, res) => {
+  try {
+    const scan = await ToyScan.findOne({
+      publicId: req.params.publicId
+    })
+      .select('imageKey imageMimeType')
+      .lean()
+
+    if (!scan?.imageKey) {
+      return res.status(404).json({
+        success: false,
+        message: 'No photo was saved for this toy scan.'
+      })
+    }
+
+    const stream = openImage(scan.imageKey)
+
+    stream.on('error', (streamError) => {
+      console.error(
+        '[storage] Failed to read photo:',
+        scan.imageKey,
+        streamError.message
+      )
+
+      if (!res.headersSent) {
+        res.status(404).json({
+          success: false,
+          message: 'The photo for this toy scan could not be found.'
+        })
+      } else {
+        res.destroy()
+      }
+    })
+
+    res.set({
+      'Content-Type': scan.imageMimeType,
+      'X-Content-Type-Options': 'nosniff',
+      // Result IDs are unguessable and a saved photo never changes.
+      'Cache-Control': 'public, max-age=86400'
+    })
+
+    stream.pipe(res)
+  } catch (error) {
+    console.error(
+      '[storage] Failed to retrieve photo:',
+      error
+    )
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve the photo.'
     })
   }
 })
@@ -525,6 +628,10 @@ app.use((error, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(
     `Backend running on http://localhost:${PORT}`
+  )
+
+  console.log(
+    `[storage] Photos are stored in ${describeStorage()}`
   )
 })
 

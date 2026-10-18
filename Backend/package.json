@@ -8,6 +8,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@google-cloud/storage": "^8.4.0",
     "@google/genai": "latest",
     "cors": "latest",
     "dotenv": "latest",

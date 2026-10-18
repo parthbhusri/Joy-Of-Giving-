@@ -122,6 +122,16 @@ const toyScanSchema = new mongoose.Schema(
     fun_fact: {
       type: String,
       required: true
+    },
+
+    // Where the scanned photo is stored (see utils/imageStorage.js).
+    // Optional so older records without a photo still load.
+    imageKey: {
+      type: String
+    },
+
+    imageMimeType: {
+      type: String
     }
   },
   {
