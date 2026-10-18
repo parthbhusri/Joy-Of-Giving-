@@ -9,6 +9,16 @@ const toyScanSchema = new mongoose.Schema(
       index: true
     },
 
+    imageObjectName: {
+      type: String,
+      required: true
+    },
+
+    imageMimeType: {
+      type: String,
+      required: true
+    },
+
     toyCategory: {
       type: String,
       required: true
@@ -129,6 +139,9 @@ const toyScanSchema = new mongoose.Schema(
   }
 )
 
-const ToyScan = mongoose.model('ToyScan', toyScanSchema)
+const ToyScan = mongoose.model(
+  'ToyScan',
+  toyScanSchema
+)
 
 export default ToyScan

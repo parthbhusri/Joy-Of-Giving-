@@ -4,6 +4,7 @@ import multer from 'multer'
 import dotenv from 'dotenv'
 import connectDB from './config/db.js'
 import { GoogleGenAI } from '@google/genai'
+import { Storage } from '@google-cloud/storage'
 import { randomUUID } from 'crypto'
 import ToyScan from './models/ToyScan.js'
 
@@ -16,15 +17,23 @@ await connectDB()
 // ----------------------------------------------------
 
 process.on('exit', (code) => {
-  console.log(`[diagnostic] process exiting with code ${code}`)
+  console.log(
+    `[diagnostic] process exiting with code ${code}`
+  )
 })
 
 process.on('uncaughtException', (err) => {
-  console.error('[diagnostic] uncaughtException:', err)
+  console.error(
+    '[diagnostic] uncaughtException:',
+    err
+  )
 })
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[diagnostic] unhandledRejection:', reason)
+  console.error(
+    '[diagnostic] unhandledRejection:',
+    reason
+  )
 })
 
 if (!process.env.GEMINI_API_KEY) {
@@ -52,10 +61,15 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin)
+      ) {
         callback(null, true)
       } else {
-        callback(new Error('Not allowed by CORS'))
+        callback(
+          new Error('Not allowed by CORS')
+        )
       }
     }
   })
@@ -83,6 +97,25 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024
   }
 })
+
+// ----------------------------------------------------
+// Google Cloud Storage
+// ----------------------------------------------------
+
+const storage = new Storage({
+  projectId: 'joy-of-giving-toy-index'
+})
+
+const IMAGE_BUCKET_NAME =
+  process.env.TOY_IMAGE_BUCKET ||
+  'joy-of-giving-toy-images-144607008974'
+
+const imageBucket =
+  storage.bucket(IMAGE_BUCKET_NAME)
+
+console.log(
+  `[storage] Toy image bucket: ${IMAGE_BUCKET_NAME}`
+)
 
 // ----------------------------------------------------
 // Gemini
@@ -118,7 +151,9 @@ async function generateContentWithRetry(params) {
   let lastError
 
   for (const model of models) {
-    console.log(`[diagnostic] Trying Gemini model: ${model}`)
+    console.log(
+      `[diagnostic] Trying Gemini model: ${model}`
+    )
 
     for (
       let attempt = 1;
@@ -126,10 +161,11 @@ async function generateContentWithRetry(params) {
       attempt++
     ) {
       try {
-        const response = await ai.models.generateContent({
-          ...params,
-          model
-        })
+        const response =
+          await ai.models.generateContent({
+            ...params,
+            model
+          })
 
         console.log(
           `[diagnostic] Gemini request succeeded using ${model}`
@@ -144,11 +180,12 @@ async function generateContentWithRetry(params) {
         const isRetryable =
           status === 408 ||
           status === 429 ||
-          (status >= 500 && status <= 599)
+          (status >= 500 &&
+            status <= 599)
 
         console.error(
           `[diagnostic] ${model} failed with status ${status} ` +
-          `(attempt ${attempt}/${maxAttemptsPerModel})`
+            `(attempt ${attempt}/${maxAttemptsPerModel})`
         )
 
         // Bad request, authentication, permission, etc.
@@ -159,18 +196,23 @@ async function generateContentWithRetry(params) {
 
         // This model has used all of its attempts.
         // Move to the fallback model if one remains.
-        if (attempt === maxAttemptsPerModel) {
+        if (
+          attempt ===
+          maxAttemptsPerModel
+        ) {
           console.warn(
             `[diagnostic] ${model} unavailable after ` +
-            `${maxAttemptsPerModel} attempts. ` +
-            `Trying fallback model...`
+              `${maxAttemptsPerModel} attempts. ` +
+              `Trying fallback model...`
           )
 
           break
         }
 
         // One short retry delay with jitter.
-        const jitter = Math.floor(Math.random() * 500)
+        const jitter =
+          Math.floor(Math.random() * 500)
+
         const delayMs = 1000 + jitter
 
         console.log(
@@ -225,19 +267,27 @@ app.post(
       if (!req.file) {
         return res.status(400).json({
           success: false,
-          message: 'No image file uploaded.'
+          message:
+            'No image file uploaded.'
         })
       }
 
-      if (!req.file.mimetype.startsWith('image/')) {
+      if (
+        !req.file.mimetype.startsWith(
+          'image/'
+        )
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Uploaded file must be an image.'
+          message:
+            'Uploaded file must be an image.'
         })
       }
 
       const imageBase64 =
-        req.file.buffer.toString('base64')
+        req.file.buffer.toString(
+          'base64'
+        )
 
       // ----------------------------------------------
       // Gemini prompt
@@ -313,7 +363,8 @@ Ratings must be numbers from 1 to 5.
                 },
                 {
                   inlineData: {
-                    mimeType: req.file.mimetype,
+                    mimeType:
+                      req.file.mimetype,
                     data: imageBase64
                   }
                 }
@@ -363,42 +414,121 @@ Ratings must be numbers from 1 to 5.
       parsedResult.id = publicId
 
       // ----------------------------------------------
-      // Save assessment to MongoDB
+      // Build permanent Cloud Storage object name
+      // ----------------------------------------------
+
+      const imageObjectName =
+        `toy-scans/${publicId}`
+
+      // ----------------------------------------------
+      // Upload image to private Cloud Storage bucket
       // ----------------------------------------------
 
       try {
-        const savedScan = await ToyScan.create({
-          publicId,
-          toyCategory: parsedResult.toyCategory,
-          toyNameGuess: parsedResult.toyNameGuess,
-          conditionSummary: parsedResult.conditionSummary,
-          cleanliness: parsedResult.cleanliness,
-          reusability: parsedResult.reusability,
-          reliability: parsedResult.reliability,
-          repairability: parsedResult.repairability,
-          repairabilityReason:
-            parsedResult.repairabilityReason,
-          suggestedActions:
-            parsedResult.suggestedActions,
-          useCase:
-            parsedResult.useCase,
-          suggestedAgeRange:
-            parsedResult.suggestedAgeRange,
-          visibleSafetyConcerns:
-            parsedResult.visibleSafetyConcerns,
-          donationReadiness:
-            parsedResult.donationReadiness,
-          battery_operated:
-            parsedResult.battery_operated,
-          battery_note:
-            parsedResult.battery_note,
-          confidence:
-            parsedResult.confidence,
-          staffReviewRequired:
-            parsedResult.staffReviewRequired,
-          fun_fact:
-            parsedResult.fun_fact
+        const imageFile =
+          imageBucket.file(
+            imageObjectName
+          )
+
+        await imageFile.save(
+          req.file.buffer,
+          {
+            resumable: false,
+
+            metadata: {
+              contentType:
+                req.file.mimetype,
+
+              cacheControl:
+                'private, max-age=3600'
+            }
+          }
+        )
+
+        console.log(
+          `[storage] Toy image saved: ${imageObjectName}`
+        )
+      } catch (storageError) {
+        console.error(
+          '[storage] Failed to save toy image:',
+          storageError
+        )
+
+        return res.status(500).json({
+          success: false,
+          message:
+            'Toy analysis succeeded, but the image could not be saved.'
         })
+      }
+
+      // ----------------------------------------------
+      // Save assessment + image reference to MongoDB
+      // ----------------------------------------------
+
+      try {
+        const savedScan =
+          await ToyScan.create({
+            publicId,
+
+            imageObjectName,
+
+            imageMimeType:
+              req.file.mimetype,
+
+            toyCategory:
+              parsedResult.toyCategory,
+
+            toyNameGuess:
+              parsedResult.toyNameGuess,
+
+            conditionSummary:
+              parsedResult.conditionSummary,
+
+            cleanliness:
+              parsedResult.cleanliness,
+
+            reusability:
+              parsedResult.reusability,
+
+            reliability:
+              parsedResult.reliability,
+
+            repairability:
+              parsedResult.repairability,
+
+            repairabilityReason:
+              parsedResult.repairabilityReason,
+
+            suggestedActions:
+              parsedResult.suggestedActions,
+
+            useCase:
+              parsedResult.useCase,
+
+            suggestedAgeRange:
+              parsedResult.suggestedAgeRange,
+
+            visibleSafetyConcerns:
+              parsedResult.visibleSafetyConcerns,
+
+            donationReadiness:
+              parsedResult.donationReadiness,
+
+            battery_operated:
+              parsedResult.battery_operated,
+
+            battery_note:
+              parsedResult.battery_note,
+
+            confidence:
+              parsedResult.confidence,
+
+            staffReviewRequired:
+              parsedResult.staffReviewRequired,
+
+            fun_fact:
+              parsedResult.fun_fact
+          })
 
         console.log(
           `[database] Toy scan saved: ${savedScan.publicId}`
@@ -408,6 +538,24 @@ Ratings must be numbers from 1 to 5.
           '[database] Failed to save toy scan:',
           databaseError
         )
+
+        // MongoDB failed after the image was uploaded.
+        // Delete the orphaned image so Storage and
+        // MongoDB remain in sync.
+        try {
+          await imageBucket
+            .file(imageObjectName)
+            .delete()
+
+          console.log(
+            `[storage] Removed orphaned image: ${imageObjectName}`
+          )
+        } catch (cleanupError) {
+          console.error(
+            '[storage] Failed to remove orphaned image:',
+            cleanupError
+          )
+        }
 
         return res.status(500).json({
           success: false,
@@ -436,15 +584,17 @@ Ratings must be numbers from 1 to 5.
         (error.status >= 500 &&
           error.status <= 599)
 
-      return res.status(
-        isBusy ? 503 : 500
-      ).json({
-        success: false,
+      return res
+        .status(
+          isBusy ? 503 : 500
+        )
+        .json({
+          success: false,
 
-        message: isBusy
-          ? "Google's AI service is temporarily busy. Please try again in a moment."
-          : 'Failed to analyse toy image.'
-      })
+          message: isBusy
+            ? "Google's AI service is temporarily busy. Please try again in a moment."
+            : 'Failed to analyse toy image.'
+        })
     }
   }
 )
@@ -453,104 +603,239 @@ Ratings must be numbers from 1 to 5.
 // Retrieve saved toy result
 // ----------------------------------------------------
 
-app.get('/api/results/:publicId', async (req, res) => {
-  try {
-    const { publicId } = req.params
+app.get(
+  '/api/results/:publicId',
+  async (req, res) => {
+    try {
+      const { publicId } =
+        req.params
 
-    console.log(
-      `[database] Fetching toy scan: ${publicId}`
-    )
+      console.log(
+        `[database] Fetching toy scan: ${publicId}`
+      )
 
-    const scan = await ToyScan.findOne({
-      publicId
-    })
-      .select('-_id -__v')
-      .lean()
+      const scan =
+        await ToyScan.findOne({
+          publicId
+        })
+          .select('-_id -__v')
+          .lean()
 
-    if (!scan) {
-      return res.status(404).json({
-        success: false,
-        message: 'Toy scan not found.'
-      })
-    }
-
-    return res.json({
-      success: true,
-      result: {
-        ...scan,
-        id: scan.publicId
+      if (!scan) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+            message:
+              'Toy scan not found.'
+          })
       }
-    })
-  } catch (error) {
-    console.error(
-      '[database] Failed to retrieve toy scan:',
-      error
-    )
 
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve toy scan.'
-    })
+      return res.json({
+        success: true,
+        result: {
+          ...scan,
+          id: scan.publicId
+        }
+      })
+    } catch (error) {
+      console.error(
+        '[database] Failed to retrieve toy scan:',
+        error
+      )
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message:
+            'Failed to retrieve toy scan.'
+        })
+    }
   }
-})
+)
+
+// ----------------------------------------------------
+// Retrieve saved toy image
+// ----------------------------------------------------
+
+app.get(
+  '/api/results/:publicId/image',
+  async (req, res) => {
+    try {
+      const { publicId } =
+        req.params
+
+      console.log(
+        `[storage] Fetching toy image for: ${publicId}`
+      )
+
+      // Find the assessment first so we know which
+      // Cloud Storage object belongs to this UUID.
+      const scan =
+        await ToyScan.findOne({
+          publicId
+        })
+          .select(
+            'imageObjectName imageMimeType'
+          )
+          .lean()
+
+      if (!scan) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+            message:
+              'Toy scan not found.'
+          })
+      }
+
+      // Older database records created before image
+      // storage was added will not have an image.
+      if (!scan.imageObjectName) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+            message:
+              'No saved image exists for this toy scan.'
+          })
+      }
+
+      const imageFile =
+        imageBucket.file(
+          scan.imageObjectName
+        )
+
+      const [exists] =
+        await imageFile.exists()
+
+      if (!exists) {
+        console.warn(
+          `[storage] Image object missing: ${scan.imageObjectName}`
+        )
+
+        return res
+          .status(404)
+          .json({
+            success: false,
+            message:
+              'Saved toy image could not be found.'
+          })
+      }
+
+      const [imageBuffer] =
+        await imageFile.download()
+
+      res.set(
+        'Content-Type',
+        scan.imageMimeType ||
+          'application/octet-stream'
+      )
+
+      res.set(
+        'Cache-Control',
+        'public, max-age=3600'
+      )
+
+      return res.send(
+        imageBuffer
+      )
+    } catch (error) {
+      console.error(
+        '[storage] Failed to retrieve toy image:',
+        error
+      )
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message:
+            'Failed to retrieve toy image.'
+        })
+    }
+  }
+)
 
 // ----------------------------------------------------
 // Upload / Express error handling
 // ----------------------------------------------------
 
-app.use((error, req, res, next) => {
-  if (
-    error instanceof multer.MulterError &&
-    error.code === 'LIMIT_FILE_SIZE'
-  ) {
-    console.warn(
-      '[diagnostic] Upload rejected: image exceeds 5 MB limit'
-    )
+app.use(
+  (error, req, res, next) => {
+    if (
+      error instanceof
+        multer.MulterError &&
+      error.code ===
+        'LIMIT_FILE_SIZE'
+    ) {
+      console.warn(
+        '[diagnostic] Upload rejected: image exceeds 5 MB limit'
+      )
 
-    return res.status(413).json({
-      success: false,
-      message:
-        'Image is too large. Please upload an image smaller than 5 MB.'
-    })
-  }
+      return res
+        .status(413)
+        .json({
+          success: false,
+          message:
+            'Image is too large. Please upload an image smaller than 5 MB.'
+        })
+    }
 
-  if (error instanceof multer.MulterError) {
+    if (
+      error instanceof
+      multer.MulterError
+    ) {
+      console.error(
+        '[diagnostic] Multer error:',
+        error
+      )
+
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            'There was a problem uploading the image.'
+        })
+    }
+
     console.error(
-      '[diagnostic] Multer error:',
+      '[diagnostic] Unhandled Express error:',
       error
     )
 
-    return res.status(400).json({
-      success: false,
-      message:
-        'There was a problem uploading the image.'
-    })
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message:
+          'Internal server error.'
+      })
   }
-
-  console.error(
-    '[diagnostic] Unhandled Express error:',
-    error
-  )
-
-  return res.status(500).json({
-    success: false,
-    message: 'Internal server error.'
-  })
-})
+)
 
 // ----------------------------------------------------
 // Start server
 // ----------------------------------------------------
 
-const server = app.listen(PORT, () => {
-  console.log(
-    `Backend running on http://localhost:${PORT}`
-  )
-})
+const server = app.listen(
+  PORT,
+  () => {
+    console.log(
+      `Backend running on http://localhost:${PORT}`
+    )
+  }
+)
 
-server.on('error', (err) => {
-  console.error(
-    '[diagnostic] server error:',
-    err
-  )
-})
+server.on(
+  'error',
+  (err) => {
+    console.error(
+      '[diagnostic] server error:',
+      err
+    )
+  }
+)
